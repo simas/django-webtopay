@@ -1,5 +1,6 @@
 import logging
 log = logging.getLogger(__name__)
+import base64
 
 from django.core.signals import got_request_exception
 
@@ -8,6 +9,10 @@ from django.views.decorators.http import require_GET
 
 from webtopay.forms import WebToPayResponseForm
 from webtopay.models import WebToPayResponse
+try:
+    from urlparse import urlparse
+except ImportError:
+    from urllib.parse import parse_qs # py3
 
 
 def _respond_error(request, err):
@@ -27,7 +32,15 @@ def _respond(obj, request, err=None):
 
 @require_GET
 def makro(request):
-    form = WebToPayResponseForm(request.META['QUERY_STRING'])
+    request_data = parse_qs(request.META['QUERY_STRING'])
+    data = request_data['data'][0].replace('-', '+').replace('_', '/')
+    decoded_data = base64.b64decode(data)
+
+    form = WebToPayResponseForm(decoded_data.decode('utf8'))
+    form.data['ss1'] = request_data['ss1'][0]
+    form.data['ss2'] = request_data['ss2'][0]
+    form.data['data'] = data
+    # form = WebToPayResponseForm(request.META['QUERY_STRING'])
 
     if not form.is_valid():
         return _respond_error(request, "Invalid form. (%s)" % form.errors)
