@@ -74,10 +74,12 @@ class WebToPayResponse(models.Model):
     status = models.IntegerField(help_text="Mokėjimo būklė: "+\
                     "0 - apmokėjimas neįvyko, "+\
                     "1 - apmokėta sėkmingai, "+\
-                    "2 - mokėjimo nurodymas priimtas, bet dar neįvykdytas",
+                    "2 - mokėjimo nurodymas priimtas, bet dar neįvykdytas"+\
+                    "3 - papildoma mokėjimo informacija",
                     choices=((0, _('payment did not succeed')),
                         (1, _('payment succeeded')),
-                        (2, _('payment accepted, but not yet processed'))),
+                        (2, _('payment accepted, but not yet processed')),
+                        (3, _('additional payment information'))),
                     default=0
                     )
 
@@ -118,6 +120,7 @@ class WebToPayResponse(models.Model):
     version = models.CharField(max_length=9,
             help_text="Mokėjimai.lt mokėjimų sistemos specifikacijos (API) "+\
                     "versijos numeris")
+    timestamp = models.DateTimeField(auto_now_add=True)
 
     """
         0x1 - Mokėjimo suma per maža

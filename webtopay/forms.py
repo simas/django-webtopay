@@ -6,6 +6,7 @@ import base64
 import logging
 import re
 from hashlib import md5
+import base64
 
 import OpenSSL
 
@@ -13,6 +14,11 @@ try:
     from urlparse import urlparse
 except ImportError:
     from urllib.parse import urlparse # py3
+
+try:
+    from urllib import urlencode
+except ImportError:
+    from urllib.parse import urlencode # py3
 
 try:
     from urlparse import parse_qsl # Python 2.6 and above
@@ -53,9 +59,10 @@ class WebToPayResponseForm(forms.ModelForm):
         return False
 
     def check_ss1(self):
-        fields = [WTP_PASSWORD, self.data['orderid'], self.data['test'], '1']
-        ss1 = Helpers.generate_ss1(fields, "|")
-        if ss1 != self.data['_ss1']:
+        # fields = [WTP_PASSWORD, self.data['orderid'], self.data['test'], '1']
+        # ss1 = Helpers.generate_ss1(fields, "|")
+        ss1 = md5(self.data['data'].encode('utf8') + WTP_PASSWORD.encode('utf8')).hexdigest()
+        if ss1 != self.data['ss1']:
             return False
         return True
 
@@ -67,7 +74,7 @@ class WebToPayResponseForm(forms.ModelForm):
         }
         """
         fields = self.data.copy()
-        sig = base64.decodestring(bytearray(fields.pop('_ss2'), 'utf-8'))
+        sig = base64.decodestring(bytearray(fields.pop('ss2'), 'utf-8'))
 
         verify_msg = "|".join(fields.values()) + "|"
 
@@ -244,10 +251,10 @@ class WebToPaymentForm(forms.Form):
             help_text="Nerodyti kableliais išskirto mokėjimo tipų sąrašų")
 
     # not properly supported yet
-    charset = forms.CharField(max_length=255, required=False,
-            widget=ValueHiddenInput(),
-            help_text="Kokiu kodavimu užkoduoti jūsų siunčiami duomenys "\
-                    "(numatytoji reikšmė utf-8)")
+#     charset = forms.CharField(max_length=255, required=False,
+#             widget=ValueHiddenInput(),
+#             help_text="Kokiu kodavimu užkoduoti jūsų siunčiami duomenys "\
+#                     "(numatytoji reikšmė utf-8)")
 
     repeat_request = forms.IntegerField(max_value=0, min_value=1,
             required=False,
@@ -266,11 +273,20 @@ class WebToPaymentForm(forms.Form):
                     "projekto) -> \"Leisti testinius mokėjimus\" (pažymėkite)")
 
     version = forms.CharField(max_length=9, required=False,
-            initial="1.4",
+            initial="1.6",
             widget=ValueHiddenInput(),
             help_text="Mokėjimai.lt mokėjimų sistemos specifikacijos (API) "\
                     "versijos numeris")
 
+    time_limit = forms.CharField(max_length=19, required=False,
+            widget=ValueHiddenInput(),
+            help_text="Parametras nurodantis iki kada galima apmokėti užklausą, "\
+                    "data pateikiama 'yyyy-mm-dd HH:MM:SS' formatu. "\
+                    "Minimali reikšmė 15 min. nuo esamo laiko, maksimali 3 dienos. "\
+                    "Pastaba: veikia tik su tam tikrais mokėjimų tipais.")
+
+    data = forms.CharField(max_length=10000, required=False,
+            widget=ValueHiddenInput())
 
     def __init__(self, *args, **kargs):
         self.button_html  = kargs.pop('button_html',
@@ -290,20 +306,40 @@ class WebToPaymentForm(forms.Form):
 
     def sign_with_password(self): # Signs self with password
         # To be encrypted
-        fields = ['projectid', 'orderid', 'lang', 'amount', 'currency',
-                'accepturl', 'cancelurl', 'callbackurl', 'payment', 'country',
+        fields = ['orderid', 'accepturl', 'cancelurl', 'callbackurl',
+                'lang', 'amount', 'currency', 'payment', 'country', 'paytext',
                 'p_firstname', 'p_lastname', 'p_email', 'p_street', 'p_city',
-                'p_state', 'p_zip', 'p_countrycode', 'test', 'version']
-        vals = [self.cleaned_data[k] for k in fields] + [WTP_PASSWORD]
-        self.data.update({'sign' : Helpers.generate_ss1(vals, u'')})
+                'p_state', 'p_zip', 'p_countrycode', 'test', 'version', 'time_limit', 'projectid']
+        vals = []
+        for field in fields:
+            vals.append((field, self.cleaned_data[field]))
+        self.data.update({'data' : Helpers.generate_base64(vals)})
+        self.data.update({'sign' : Helpers.generate_ss1(vals)})
         self.clean() # Propagate field "sign"
 
 
 class Helpers:
     @staticmethod
-    def generate_ss1(values, sep):
+    def generate_ss1_old(values, sep):
         if six.PY3:
             values = map(str, values)
         else:
             values = map(unicode, values)
-        return md5(sep.join(values).encode('utf8')).hexdigest()
+        valstr = sep.join(values)
+        hashed = valstr.encode('utf8')
+        b64 = base64.b64encode(hashed).replace(b'/', b'_').replace(b'+', b'-')
+        return md5(b64).hexdigest()
+
+    @staticmethod
+    def generate_base64(values):
+        valstr = urlencode(values)
+        encoded = valstr.encode('utf8')
+        b64 = base64.b64encode(encoded)
+        b64_replaced = b64.replace(b'/', b'_').replace(b'+', b'-')
+        return b64_replaced
+
+    @staticmethod
+    def generate_ss1(values):
+        final_string = Helpers.generate_base64(values) + WTP_PASSWORD.encode('utf8')
+        hexdigest = md5(final_string).hexdigest()
+        return hexdigest
