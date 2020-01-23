@@ -313,7 +313,7 @@ class WebToPaymentForm(forms.Form):
         vals = []
         for field in fields:
             vals.append((field, self.cleaned_data[field]))
-        self.data.update({'data' : Helpers.generate_base64(vals)})
+        self.data.update({'data' : Helpers.generate_base64(vals).decode('utf-8')})
         self.data.update({'sign' : Helpers.generate_ss1(vals)})
         self.clean() # Propagate field "sign"
 
