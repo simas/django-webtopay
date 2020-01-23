@@ -6,8 +6,8 @@ class ValueHiddenInput(forms.HiddenInput):
     Used to remove unused fields.
     Stolen from django-paypal.
     """
-    def render(self, name, value, attrs=None):
+    def render(self, name, value, attrs=None, renderer=None):
         if value is None:
             return u'' 
         else:
-            return super(ValueHiddenInput, self).render(name, value, attrs)
+            return super(ValueHiddenInput, self).render(name, value, attrs, renderer)
