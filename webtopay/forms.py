@@ -21,9 +21,9 @@ except ImportError:
     from urllib.parse import urlencode # py3
 
 try:
-    from urlparse import parse_qsl # Python 2.6 and above
+    from urllib.parse import parse_qsl
 except ImportError:
-    from cgi import parse_qsl
+    from urlparse import parse_qsl
 
 from django import forms
 from django.utils.safestring import mark_safe
